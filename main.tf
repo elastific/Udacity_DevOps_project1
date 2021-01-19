@@ -19,26 +19,77 @@ resource "azurerm_virtual_network" "main" {
 }
 
 resource "azurerm_network_security_group" "main" { 
-  count                           = var.count_
+  count               = var.count_
   name                = "${var.prefix}_SecurityGroup-${count.index}"
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
-
-  security_rule {
-    name                                        = "${var.prefix}_SecurityRule1"
-    priority                                    = 100
-    direction                                   = "Inbound"
-    access                                      = "deny"
-    destination_application_security_group_ids  = [azurerm_application_security_group.main.id]
-    source_address_prefix                       = [""]
-    # destination_address_prefix                  = []
-    protocol                                    = "*"
-    source_port_range                           = "*"
-    destination_port_range                      = "*"
-  }
-
   tags = {environment = "TEST"}
 }
+# ==========================================================
+resource "azurerm_network_security_rule" "main1" {
+  count                       = var.count_
+  name                        = "${var.prefix}_inbound_deny_SR"
+  destination_address_prefix  = "Internet"
+  source_address_prefix       = "0.0.0.0/0"
+  priority                    = 100
+  direction                   = "Inbound"
+  access                      = "deny"
+  protocol                    = "*"
+  destination_port_range      = "0-65535"
+  source_port_range           = "0-65535"
+  resource_group_name         = azurerm_resource_group.main.name
+  # network_security_group_name = "${var.prefix}_SecurityGroup-${count.index}"
+  network_security_group_name = azurerm_network_security_group.main[count.index].name
+}
+# ==========================================================
+resource "azurerm_network_security_rule" "main2" {
+  count                       = var.count_
+  name                        = "${var.prefix}_inbound_allow_SR"
+  priority                    = 101
+  destination_address_prefix  = "VirtualNetwork"
+  source_address_prefix       = "VirtualNetwork"
+  direction                   = "Inbound"
+  access                      = "allow"
+  protocol                    = "*"
+  destination_port_range      = "0-65535"
+  source_port_range           = "0-65535"
+  resource_group_name         = azurerm_resource_group.main.name
+  # network_security_group_name = "${var.prefix}_SecurityGroup-${count.index}"
+    network_security_group_name = azurerm_network_security_group.main[count.index].name
+  }
+# ==========================================================
+resource "azurerm_network_security_rule" "main3" {
+  name                        = "${var.prefix}_outbound_allow_SR"
+  count                       = var.count_
+  priority                    = 101
+  destination_address_prefix  = "VirtualNetwork"
+  source_address_prefix       = "VirtualNetwork"
+  direction                   = "Outbound"
+  access                      = "allow"
+  protocol                    = "*"
+  destination_port_range      = "0-65535"
+  source_port_range           = "0-65535"
+  resource_group_name         = azurerm_resource_group.main.name
+  # network_security_group_name = "${var.prefix}_SecurityGroup-${count.index}"
+    network_security_group_name = azurerm_network_security_group.main[count.index].name
+}
+# ==========================================================
+resource "azurerm_network_security_rule" "main4" {
+  name                        = "${var.prefix}_load_balancer_SR"
+  count                       = var.count_
+  priority                    = 102
+  destination_address_prefix  = "*"
+  source_address_prefix       = "AzureLoadBalancer"
+  direction                   = "Inbound"
+  access                      = "allow"
+  protocol                    = "*"
+  destination_port_range      = "0-65535"
+  source_port_range           = "0-65535"
+  resource_group_name         = azurerm_resource_group.main.name
+  # network_security_group_name = "${var.prefix}_SecurityGroup-${count.index}"
+    network_security_group_name = azurerm_network_security_group.main[count.index].name
+}
+# ==========================================================
 
 resource "azurerm_subnet" "internal" {
   name                 = "internal"
@@ -55,7 +106,8 @@ resource "azurerm_application_security_group" "main" {
 }
 
 resource "azurerm_network_interface" "main" {
-  name                = "${var.prefix}-nic"
+  count               = var.count_
+  name                = "${var.prefix}-nic-${count.index}"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
 
@@ -115,7 +167,7 @@ resource "azurerm_linux_virtual_machine" "main" {
   admin_username                  = var.admin_username
   admin_password                  = var.admin_password
   disable_password_authentication = false
-  network_interface_ids           = [azurerm_network_interface.main.id]
+  network_interface_ids           = [azurerm_network_interface.main[count.index].id]
   # virtual_machine_scale_set_id    = azurerm_availability_set.main.id
 
   source_image_reference {
